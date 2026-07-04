@@ -179,4 +179,3 @@ phantomlog/
 
 ---
 
-*Day 5 of the Phantom Security toolkit. Next up: PhantomRecon.*
