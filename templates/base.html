@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}PhantomLog{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<canvas id="matrix-bg"></canvas>
+<div id="toast-container"></div>
+
+<div class="page-shell">
+  <header class="site-header">
+    <div class="brand-mark"><i class="fa-solid fa-file-lines"></i></div>
+    <div class="brand-text">
+      <span class="brand-name">PHANTOM<span class="accent">LOG</span></span>
+      <span class="brand-sub">APACHE / NGINX / AUTH LOG ANALYZER</span>
+    </div>
+  </header>
+
+  <nav class="nav-tabs">
+    <a href="/"          class="nav-tab {{ 'active' if active=='analyze' }}"><i class="fa-solid fa-magnifying-glass-chart"></i><span>Analyze Log</span></a>
+    <a href="/reference" class="nav-tab {{ 'active' if active=='reference' }}"><i class="fa-solid fa-book"></i><span>Detection Reference</span></a>
+  </nav>
+
+  {% block content %}{% endblock %}
+</div>
+
+<script src="{{ url_for('static', filename='js/matrix.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

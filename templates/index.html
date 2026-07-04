@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Analyze Log — PhantomLog{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-file-lines"></i> Analyze a Log File</div>
+  <p style="color:var(--text-mid);font-size:13px;margin-bottom:18px">
+    Supports Apache/Nginx access logs (Combined Log Format) and Linux auth.log (SSH). Format is
+    auto-detected per line, so mixed files work too. 100% offline — nothing leaves your browser/server.
+  </p>
+
+  <div class="drop-zone" id="fileZone">
+    <input type="file" id="fileInput" accept=".log,.txt">
+    <div id="fileLabel">
+      <div class="drop-icon"><i class="fa-solid fa-upload"></i></div>
+      <div class="drop-label"><strong>Drop a log file</strong> or click to browse</div>
+    </div>
+  </div>
+
+  <p style="text-align:center;color:var(--text-low);font-size:12px;margin:12px 0">— or paste log text —</p>
+
+  <div class="field">
+    <textarea id="logText" rows="6" placeholder="Paste raw log lines here..."></textarea>
+  </div>
+
+  <div class="btn-row" style="margin-bottom:14px">
+    <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalyze()">
+      <i class="fa-solid fa-magnifying-glass-chart"></i> Analyze
+    </button>
+    <div class="loader" id="loader"><div class="spinner"></div> Parsing & scanning for threats…</div>
+  </div>
+
+  <p style="font-size:12px;color:var(--text-low);margin-bottom:8px">No log file handy? Try a sample with injected attacks:</p>
+  <div class="sample-btns">
+    <button class="btn btn-secondary btn-sm" onclick="loadSample('access')"><i class="fa-solid fa-globe"></i> Sample Access Log (web attacks)</button>
+    <button class="btn btn-secondary btn-sm" onclick="loadSample('auth')"><i class="fa-solid fa-terminal"></i> Sample Auth Log (SSH brute-force)</button>
+  </div>
+</div>
+
+<div id="results"></div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+PL.initDropZone("fileZone", "fileInput", "fileLabel");
+
+async function loadSample(kind) {
+  const r = await PL.getJSON(`/api/sample/${kind}`);
+  document.getElementById("logText").value = r.text;
+  document.getElementById("fileInput").value = "";
+  document.getElementById("fileLabel").innerHTML = `<div class="drop-icon"><i class="fa-solid fa-upload"></i></div><div class="drop-label"><strong>Drop a log file</strong> or click to browse</div>`;
+  PL.toast(`Loaded sample ${kind} log — click Analyze`, "info");
+  window.scrollTo({top: document.getElementById("logText").offsetTop - 100, behavior: "smooth"});
+}
+
+async function runAnalyze() {
+  const fileInput = document.getElementById("fileInput");
+  const logText = document.getElementById("logText").value.trim();
+
+  if (!fileInput.files.length && !logText) {
+    PL.toast("Upload a file or paste log text.", "error"); return;
+  }
+
+  const btn = document.getElementById("analyzeBtn");
+  const loader = document.getElementById("loader");
+  PL.setLoading(loader, btn, true);
+
+  let r;
+  if (fileInput.files.length) {
+    const fd = new FormData();
+    fd.append("file", fileInput.files[0]);
+    fd.append("log_type", "auto");
+    r = await PL.postForm("/api/analyze", fd);
+  } else {
+    r = await PL.postJSON("/api/analyze", { log_text: logText, log_type: "auto" });
+  }
+
+  PL.setLoading(loader, btn, false);
+
+  if (r.error) { PL.toast(r.error, "error"); return; }
+  render(r);
+}
+
+let _allFindings = [];
+
+function render(r) {
+  _allFindings = r.findings;
+  const s = r.summary;
+  const color = PL.threatColor(s.threat_level);
+  const icon = PL.threatIcon(s.threat_level);
+
+  let html = `<div class="threat-banner ${s.threat_level}">
+    <div class="threat-icon"><i class="fa-solid fa-${icon}" style="color:${color}"></i></div>
+    <div class="threat-text">
+      <h3 style="color:${color}">Threat Level: ${s.threat_level}</h3>
+      <p>${s.total_findings} finding(s) across ${s.total_events} log lines · ${s.unique_attacker_ips} of ${s.unique_source_ips} unique IPs flagged</p>
+    </div>
+  </div>`;
+
+  html += `<div class="card result-block">
+    <div class="card-title"><i class="fa-solid fa-chart-simple"></i> Overview</div>
+    <div class="stat-row">
+      <div class="stat-box neutral"><span class="num">${s.total_events}</span><span class="lbl">Log Lines</span></div>
+      <div class="stat-box cyan"><span class="num">${s.parse_stats.parse_success_rate}%</span><span class="lbl">Parsed OK</span></div>
+      <div class="stat-box red"><span class="num">${s.findings_by_severity.critical}</span><span class="lbl">Critical</span></div>
+      <div class="stat-box yellow"><span class="num">${s.findings_by_severity.high}</span><span class="lbl">High</span></div>
+      <div class="stat-box neutral"><span class="num">${s.findings_by_severity.medium}</span><span class="lbl">Medium</span></div>
+    </div>
+    ${s.date_range ? `<p style="font-size:12px;color:var(--text-mid);font-family:var(--font-mono)">Time range: ${PL.esc(s.date_range.start)} → ${PL.esc(s.date_range.end)}</p>` : ''}
+  </div>`;
+
+  if (r.findings_timeline && r.findings_timeline.length) {
+    html += `<div class="card result-block">
+      <div class="card-title"><i class="fa-solid fa-chart-column"></i> Findings Timeline</div>
+      <div id="timelineChart"></div>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--text-low)">
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);border-radius:2px;margin-right:5px"></span>Critical</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:2px;margin-right:5px"></span>High</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--yellow);border-radius:2px;margin-right:5px"></span>Medium</span>
+      </div>
+    </div>`;
+  }
+
+  if (r.top_offenders && r.top_offenders.length) {
+    html += `<div class="card result-block">
+      <div class="card-title"><i class="fa-solid fa-ranking-star"></i> Top Offenders</div>
+      ${r.top_offenders.map((o, i) => `
+        <div class="offender-row">
+          <div class="offender-rank">${i+1}</div>
+          <div class="offender-ip">${PL.esc(o.ip)}</div>
+          <div class="offender-cats">${o.categories.map(c => PL.esc(c.replace(/_/g,' '))).join(', ')}</div>
+          <div class="offender-score" style="color:${PL.threatColor(o.worst_severity==='critical'?'CRITICAL':o.worst_severity==='high'?'HIGH':'MEDIUM')}">${o.risk_score}</div>
+        </div>`).join("")}
+    </div>`;
+  }
+
+  html += `<div class="card result-block">
+    <div class="card-title"><i class="fa-solid fa-list-check"></i> All Findings (${r.findings.length})</div>
+    <div class="field">
+      <input type="text" id="ipFilter" placeholder="Filter by IP address..." oninput="filterFindings()">
+    </div>
+    <div id="findingsList">${r.findings.map(f => PL.finding(f)).join("") || '<div class="empty-state"><i class="fa-solid fa-shield-check"></i><p>No security findings detected.</p></div>'}</div>
+  </div>`;
+
+  document.getElementById("results").innerHTML = html;
+
+  if (r.findings_timeline && r.findings_timeline.length) {
+    PL.renderTimeline(r.findings_timeline, "timelineChart");
+  }
+}
+
+function filterFindings() {
+  const q = document.getElementById("ipFilter").value.trim().toLowerCase();
+  const filtered = q ? _allFindings.filter(f => (f.source_ip || "").toLowerCase().includes(q)) : _allFindings;
+  document.getElementById("findingsList").innerHTML =
+    filtered.map(f => PL.finding(f)).join("") ||
+    `<div class="empty-state"><i class="fa-solid fa-magnifying-glass"></i><p>No findings match "${PL.esc(q)}".</p></div>`;
+}
+</script>
+{% endblock %}

